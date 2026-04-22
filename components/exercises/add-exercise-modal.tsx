@@ -48,7 +48,7 @@ export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps
   const [name, setName] = useState("")
   const [category, setCategory] = useState<ExerciseCategory | "">("")
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | "">("")
-  const [subRegion, setSubRegion] = useState("")
+  const [subRegions, setSubRegion] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const availableSubRegions = muscleGroup
@@ -72,7 +72,7 @@ export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps
     if (!muscleGroup) {
       newErrors.muscleGroup = "Primary muscle group is required"
     }
-    if (!subRegion) {
+    if (!subRegions) {
       newErrors.subRegion = "Sub-region is required"
     }
 
@@ -87,7 +87,7 @@ export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps
       name: name.trim(),
       category: category as ExerciseCategory,
       primaryMuscleGroup: muscleGroup as MuscleGroup,
-      subRegion,
+      subRegions: subRegions ? [subRegions] : [],
     })
 
     // Reset form
@@ -175,7 +175,7 @@ export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps
               Sub-region <span className="text-destructive">*</span>
             </FieldLabel>
             <Select
-              value={subRegion}
+              value={subRegions}
               onValueChange={setSubRegion}
               disabled={!muscleGroup}
             >

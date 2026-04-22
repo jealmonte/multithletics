@@ -39,17 +39,80 @@ export type MuscleGroup =
   | "Calves"
 
 export const muscleSubRegions: Record<MuscleGroup, string[]> = {
-  Chest: ["Upper", "Mid", "Lower"],
-  Back: ["Lats", "Upper Back", "Traps", "Lower Back"],
-  Shoulders: ["Front Delt", "Side Delt", "Rear Delt"],
-  Biceps: ["Long Head", "Short Head"],
-  Triceps: ["Long Head", "Lateral Head", "Medial Head"],
-  Forearms: ["Flexors", "Extensors", "Brachioradialis"],
-  Core: ["Abs", "Obliques", "Lower Back"],
-  Quads: ["Rectus Femoris", "Vastus Lateralis", "Vastus Medialis"],
-  Hamstrings: ["Biceps Femoris", "Semimembranosus"],
-  Glutes: ["Gluteus Maximus", "Gluteus Medius"],
-  Calves: ["Gastrocnemius", "Soleus"],
+  Chest: ["Upper Chest", "Mid Chest", "Lower Chest"],
+
+  Back: [
+    "Lats",
+    "Upper Back",
+    "Mid Traps / Rhomboids",
+    "Lower Traps",
+    "Spinal Erectors",
+    "Teres Major",
+  ],
+
+  Shoulders: [
+    "Front Delts",
+    "Lateral Delts",
+    "Rear Delts",
+    "Rotator Cuff",
+  ],
+
+  Biceps: [
+    "Long Head",
+    "Short Head",
+    "Brachialis",
+    "Brachioradialis",
+  ],
+
+  Triceps: [
+    "Long Head",
+    "Lateral Head",
+    "Medial Head",
+  ],
+
+  Forearms: [
+    "Wrist Flexors",
+    "Wrist Extensors",
+    "Finger Flexors",
+    "Pronators",
+    "Supinators",
+  ],
+
+  Core: [
+    "Rectus Abdominis",
+    "Obliques",
+    "Transverse Abdominis",
+    "Hip Flexors",
+    "QL",
+  ],
+
+  Quads: [
+    "Rectus Femoris",
+    "Vastus Lateralis",
+    "Vastus Medialis",
+    "Vastus Intermedius",
+    "Adductors",
+  ],
+
+  Hamstrings: [
+    "Biceps Femoris",
+    "Semimembranosus",
+    "Semitendinosus",
+    "Hip Extension Bias",
+    "Knee Flexion Bias",
+  ],
+
+  Glutes: [
+    "Glute Max",
+    "Glute Med",
+    "Glute Min",
+  ],
+
+  Calves: [
+    "Gastrocnemius",
+    "Soleus",
+    "Tibialis Anterior",
+  ],
 }
 
 // Exercise
@@ -58,7 +121,7 @@ export interface Exercise {
   name: string
   category: ExerciseCategory
   primaryMuscleGroup: MuscleGroup
-  subRegion: string
+  subRegions: string[]
 }
 
 // Set data for hypertrophy
@@ -72,7 +135,9 @@ export interface SessionExercise {
   exerciseId: string
   exerciseName: string
   primaryMuscleGroup: MuscleGroup
-  subRegion: string
+  subRegions: string[]
+  targetRepMin?: number
+  targetRepMax?: number
   sets: SetData[]
 }
 
@@ -127,9 +192,10 @@ export interface HypertrophyTemplate {
     exerciseId: string
     exerciseName: string
     primaryMuscleGroup: MuscleGroup
-    subRegion: string
+    subRegions: string[]
     defaultSets: number
-    defaultReps: number
+    targetRepMin: number
+    targetRepMax: number
   }[]
 }
 
