@@ -142,13 +142,14 @@ export interface SessionExercise {
 }
 
 // Climbing block
-export interface ClimbingBlock {
+export type ClimbingBlock = {
   id: string
   blockType: ClimbingBlockType
   boardType: BoardType
   gradeRange: string
   intensity: Intensity
-  duration: number // minutes
+  duration: number
+  notes?: string
 }
 
 // Base session interface

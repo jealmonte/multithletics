@@ -49,11 +49,113 @@ const blockTypes: ClimbingBlockType[] = [
 
 const boardTypes: BoardType[] = ["Moonboard", "Kilter", "Tension", "Spray", "None"]
 const intensities: Intensity[] = ["Easy", "Moderate", "Hard"]
-
 const intensityColors: Record<Intensity, string> = {
   Easy: "bg-green-100 text-green-800",
   Moderate: "bg-yellow-100 text-yellow-800",
   Hard: "bg-red-100 text-red-800",
+}
+
+function mapBlockTypeToDb(type: ClimbingBlockType): string {
+  switch (type) {
+    case "Warmup":
+      return "warmup"
+    case "No-hangs":
+      return "no_hangs"
+    case "Limit board":
+      return "limit_board"
+    case "Tension board":
+      return "tension_board"
+    case "Endurance circuit":
+      return "endurance_circuit"
+    case "Spray board":
+      return "spray_board"
+    case "Outdoor prep":
+      return "outdoor_prep"
+    case "Other":
+    default:
+      return "other"
+  }
+}
+
+function mapIntensityFromDb(value: string | null): Intensity {
+  switch (value) {
+    case "easy":
+      return "Easy"
+    case "moderate":
+      return "Moderate"
+    case "hard":
+      return "Hard"
+    default:
+      return "Moderate"
+  }
+}
+
+function mapIntensityToDb(intensity: Intensity): string {
+  switch (intensity) {
+    case "Easy":
+      return "easy"
+    case "Moderate":
+      return "moderate"
+    case "Hard":
+      return "hard"
+    default:
+      return "moderate"
+  }
+}
+
+function mapBoardTypeToDb(board: BoardType): string {
+  switch (board) {
+    case "Moonboard":
+      return "moonboard"
+    case "Kilter":
+      return "kilter"
+    case "Tension":
+      return "tension"
+    case "Spray":
+      return "spray"
+    case "None":
+    default:
+      return "none"
+  }
+}
+
+function mapBoardTypeFromDb(value: string | null): BoardType {
+  switch (value) {
+    case "moonboard":
+      return "Moonboard"
+    case "kilter":
+      return "Kilter"
+    case "tension":
+      return "Tension"
+    case "spray":
+      return "Spray"
+    case "none":
+    case null:
+    default:
+      return "None"
+  }
+}
+
+function mapBlockTypeFromDb(value: string | null): ClimbingBlockType {
+  switch (value) {
+    case "warmup":
+      return "Warmup"
+    case "no_hangs":
+      return "No-hangs"
+    case "limit_board":
+      return "Limit board"
+    case "tension_board":
+      return "Tension board"
+    case "endurance_circuit":
+      return "Endurance circuit"
+    case "spray_board":
+      return "Spray board"
+    case "outdoor_prep":
+      return "Outdoor prep"
+    case "other":
+    default:
+      return "Other"
+  }
 }
 
 function HypertrophyTemplateEditor({
@@ -288,7 +390,7 @@ function ClimbingTemplateEditor({
   onChange,
 }: {
   template: ClimbingTemplate
-  onChange: (template: ClimbingTemplate) => void
+  onChange?: (template: ClimbingTemplate) => void
 }) {
   const [name, setName] = useState(template.name)
   const [blocks, setBlocks] = useState(template.blocks)
@@ -300,7 +402,18 @@ function ClimbingTemplateEditor({
 
   const handleNameChange = (newName: string) => {
     setName(newName)
-    onChange({ ...template, name: newName, blocks })
+    onChange?.({ ...template, name: newName, blocks })
+  }
+
+  const handleBlockChange = (
+    index: number,
+    field: keyof (typeof blocks)[number],
+    value: string | number
+  ) => {
+    const newBlocks = [...blocks]
+    newBlocks[index] = { ...newBlocks[index], [field]: value }
+    setBlocks(newBlocks)
+    onChange?.({ ...template, name, blocks: newBlocks })
   }
 
   const handleAddBlock = () => {
@@ -310,150 +423,199 @@ function ClimbingTemplateEditor({
       gradeRange: "",
       intensity: "Moderate" as Intensity,
       duration: 15,
+      notes: "",
     }
     const newBlocks = [...blocks, newBlock]
     setBlocks(newBlocks)
-    onChange({ ...template, name, blocks: newBlocks })
+    onChange?.({ ...template, name, blocks: newBlocks })
   }
 
   const handleRemoveBlock = (index: number) => {
     const newBlocks = blocks.filter((_, i) => i !== index)
     setBlocks(newBlocks)
-    onChange({ ...template, name, blocks: newBlocks })
-  }
-
-  const handleBlockChange = (
-    index: number,
-    field: keyof (typeof blocks)[0],
-    value: string | number
-  ) => {
-    const newBlocks = [...blocks]
-    newBlocks[index] = { ...newBlocks[index], [field]: value }
-    setBlocks(newBlocks)
-    onChange({ ...template, name, blocks: newBlocks })
+    onChange?.({ ...template, name, blocks: newBlocks })
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <label className="text-sm font-medium">Template Name</label>
-        <Input
-          value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
-          className="mt-1.5"
-        />
-      </div>
+    <div className="flex h-full flex-col">
+      <div className="space-y-4 border-b bg-card p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Template name
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="e.g. Moonboard Power A"
+              className="h-8 text-sm"
+            />
+          </div>
+        </div>
 
-      <Separator />
-
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <label className="text-sm font-medium">Blocks</label>
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">Blocks</p>
+            <p className="text-xs text-muted-foreground">
+              Configure your warmup, board work, and finisher blocks. Add notes
+              like “Full-body stretch” or “Scap warmup” per block.
+            </p>
+          </div>
           <Button variant="outline" size="sm" onClick={handleAddBlock}>
-            <Plus className="mr-1 h-4 w-4" />
-            Add Block
+            <Plus className="mr-1 h-3 w-3" />
+            Block
           </Button>
         </div>
+      </div>
 
-        <div className="space-y-3">
-          {blocks.map((block, index) => (
-            <div key={index} className="space-y-3 rounded-md border bg-card p-4">
-              <div className="flex items-center justify-between">
-                <Select
-                  value={block.blockType}
-                  onValueChange={(value) =>
-                    handleBlockChange(index, "blockType", value)
-                  }
-                >
-                  <SelectTrigger className="h-8 w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {blockTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => handleRemoveBlock(index)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Select
-                  value={block.boardType}
-                  onValueChange={(value) =>
-                    handleBlockChange(index, "boardType", value)
-                  }
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Board" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {boardTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={block.gradeRange}
-                  onChange={(e) =>
-                    handleBlockChange(index, "gradeRange", e.target.value)
-                  }
-                  placeholder="e.g. V3-V6"
-                  className="h-8"
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex gap-1">
-                  {intensities.map((intensity) => (
-                    <Button
-                      key={intensity}
-                      variant={block.intensity === intensity ? "default" : "outline"}
-                      size="sm"
-                      className={cn(
-                        "h-7 text-xs",
-                        block.intensity === intensity && intensityColors[intensity]
-                      )}
-                      onClick={() =>
-                        handleBlockChange(index, "intensity", intensity)
+      <ScrollArea className="flex-1">
+        <div className="space-y-3 p-4">
+          {blocks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No blocks yet. Add a warmup, board, or finisher block to get
+              started.
+            </p>
+          ) : (
+            blocks.map((block, index) => (
+              <div
+                key={index}
+                className="space-y-3 rounded-md border bg-card p-4"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Block {index + 1}
+                    </Badge>
+                    <Select
+                      value={block.blockType}
+                      onValueChange={(value) =>
+                        handleBlockChange(index, "blockType", value)
                       }
                     >
-                      {intensity}
-                    </Button>
-                  ))}
+                      <SelectTrigger className="h-8 w-[180px] text-xs">
+                        <SelectValue placeholder="Block type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {blockTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveBlock(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="ml-auto flex items-center gap-1">
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Board
+                    </label>
+                    <Select
+                      value={block.boardType}
+                      onValueChange={(value) =>
+                        handleBlockChange(index, "boardType", value)
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Board type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {boardTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Grade range
+                    </label>
+                    <Input
+                      value={block.gradeRange}
+                      onChange={(e) =>
+                        handleBlockChange(index, "gradeRange", e.target.value)
+                      }
+                      placeholder="e.g. V3–V5"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Intensity
+                    </label>
+                    <div className="flex gap-1">
+                      {intensities.map((level) => (
+                        <Button
+                          key={level}
+                          type="button"
+                          size="sm"
+                          variant={
+                            block.intensity === level ? "default" : "outline"
+                          }
+                          className="h-7 px-2 text-xs"
+                          onClick={() =>
+                            handleBlockChange(index, "intensity", level)
+                          }
+                        >
+                          {level}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Duration (min)
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={block.duration}
+                      onChange={(e) =>
+                        handleBlockChange(
+                          index,
+                          "duration",
+                          Number(e.target.value) || 0
+                        )
+                      }
+                      className="h-8 w-[80px] text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Notes field */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Notes
+                  </label>
                   <Input
-                    type="number"
-                    value={block.duration}
+                    value={block.notes ?? ""}
                     onChange={(e) =>
-                      handleBlockChange(index, "duration", Number(e.target.value))
+                      handleBlockChange(index, "notes", e.target.value)
                     }
-                    className="h-8 w-16 text-sm"
+                    placeholder="e.g. Full-body stretch, scap warmup, easy traverses"
+                    className="h-8 text-xs"
                   />
-                  <span className="text-xs text-muted-foreground">min</span>
                 </div>
               </div>
-            </div>
-          ))}
-          {blocks.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No blocks added yet
-            </p>
+            ))
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }
@@ -624,18 +786,20 @@ export function TemplateEditor({
 
         localTemplate = {
           ...(template as ClimbingTemplate),
-          blocks: rows.map((row) => {
+          blocks: rows.map((row, index) => {
             const gradeRange =
               row.grade_min && row.grade_max
                 ? `${row.grade_min}-${row.grade_max}`
-                : ""
+                : row.grade_min || row.grade_max || ""
 
             return {
-              blockType: row.block_type as ClimbingBlockType,
-              boardType: (row.board_type ?? "None") as BoardType,
+              id: `block-${index}`,
+              blockType: mapBlockTypeFromDb(row.block_type),
+              boardType: mapBoardTypeFromDb(row.board_type),
               gradeRange,
-              intensity: row.intensity as Intensity,
+              intensity: mapIntensityFromDb(row.intensity),
               duration: row.planned_duration_min ?? 0,
+              notes: row.notes ?? "",
             }
           }),
         }
@@ -735,15 +899,17 @@ export function TemplateEditor({
       if (ct.blocks.length > 0) {
         const payload = ct.blocks.map((block, index) => {
           const gradeParts = block.gradeRange.split("-")
+
           return {
             template_id: ct.id,
             order_index: index,
-            block_type: block.blockType,
-            board_type: block.boardType === "None" ? null : block.boardType,
+            block_type: mapBlockTypeToDb(block.blockType),
+            board_type: mapBoardTypeToDb(block.boardType),
             grade_min: gradeParts[0] || null,
             grade_max: gradeParts[1] || null,
-            intensity: block.intensity,
-            planned_duration_min: block.duration,
+            intensity: mapIntensityToDb(block.intensity),
+            planned_duration_min: block.duration ?? 0,
+            notes: block.notes ?? null,
           }
         })
 
