@@ -39,7 +39,6 @@ const blockTypes: ClimbingBlockType[] = [
 ]
 
 const boardTypes: BoardType[] = ["Moonboard", "Kilter", "Tension", "Spray", "None"]
-
 const intensities: Intensity[] = ["Easy", "Moderate", "Hard"]
 
 const intensityColors: Record<Intensity, string> = {
@@ -62,9 +61,8 @@ function BlockRow({
   onRemove?: (index: number) => void
 }) {
   if (!isEditable) {
-    // Read-only view for last time
     return (
-      <div className="flex flex-col gap-1 py-2 border-b border-border last:border-0">
+      <div className="flex flex-col gap-1 border-b border-border py-2 last:border-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{block.blockType}</span>
           {block.boardType !== "None" && (
@@ -77,7 +75,7 @@ function BlockRow({
           {block.gradeRange && <span>{block.gradeRange}</span>}
           <Badge
             variant="secondary"
-            className={cn("text-[10px] px-1.5 h-4", intensityColors[block.intensity])}
+            className={cn("h-4 px-1.5 text-[10px]", intensityColors[block.intensity])}
           >
             {block.intensity}
           </Badge>
@@ -87,9 +85,8 @@ function BlockRow({
     )
   }
 
-  // Editable view for today
   return (
-    <div className="rounded-md border border-border p-3 space-y-3">
+    <div className="space-y-3 rounded-md border border-border p-3">
       <div className="flex items-center justify-between">
         <Select
           value={block.blockType}
@@ -97,7 +94,7 @@ function BlockRow({
             onChange?.(index, { ...block, blockType: value })
           }
         >
-          <SelectTrigger className="w-[160px] h-8">
+          <SelectTrigger className="h-8 w-[160px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -108,6 +105,7 @@ function BlockRow({
             ))}
           </SelectContent>
         </Select>
+
         <Button
           variant="ghost"
           size="icon"
@@ -136,6 +134,7 @@ function BlockRow({
             ))}
           </SelectContent>
         </Select>
+
         <Input
           value={block.gradeRange}
           onChange={(e) =>
@@ -151,6 +150,7 @@ function BlockRow({
           {intensities.map((intensity) => (
             <Button
               key={intensity}
+              type="button"
               variant={block.intensity === intensity ? "default" : "outline"}
               size="sm"
               className={cn(
@@ -163,14 +163,15 @@ function BlockRow({
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-1 ml-auto">
+
+        <div className="ml-auto flex items-center gap-1">
           <Input
             type="number"
             value={block.duration || ""}
             onChange={(e) =>
-              onChange?.(index, { ...block, duration: Number(e.target.value) })
+              onChange?.(index, { ...block, duration: Number(e.target.value) || 0 })
             }
-            className="w-16 h-8 text-sm"
+            className="h-8 w-16 text-sm"
           />
           <span className="text-xs text-muted-foreground">min</span>
         </div>
@@ -201,7 +202,10 @@ export function ClimbingEditor({
       gradeRange: "",
       intensity: "Moderate",
       duration: 15,
+      notes: "",
+      exercises: [],
     }
+
     const newBlocks = [...blocks, newBlock]
     setBlocks(newBlocks)
     onUpdate({ ...session, blocks: newBlocks })
@@ -215,9 +219,8 @@ export function ClimbingEditor({
 
   return (
     <div className="grid grid-cols-2 gap-6">
-      {/* Last Time */}
       <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-3">
+        <h4 className="mb-3 text-sm font-medium text-muted-foreground">
           Last Time
         </h4>
         {lastSession ? (
@@ -236,9 +239,8 @@ export function ClimbingEditor({
         )}
       </div>
 
-      {/* Today */}
       <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-3">
+        <h4 className="mb-3 text-sm font-medium text-muted-foreground">
           Today
         </h4>
         <div className="space-y-3">
@@ -252,13 +254,14 @@ export function ClimbingEditor({
               onRemove={handleRemoveBlock}
             />
           ))}
+
           <Button
             variant="outline"
             size="sm"
             className="w-full"
             onClick={handleAddBlock}
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add Block
           </Button>
         </div>

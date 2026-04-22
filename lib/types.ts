@@ -150,6 +150,18 @@ export type ClimbingBlock = {
   intensity: Intensity
   duration: number
   notes?: string
+  exercises: ClimbingBlockExercise[]
+}
+
+export type ClimbingBlockExercise = {
+  exerciseId: string
+  exerciseName: string
+  primaryMuscleGroup: MuscleGroup
+  subRegions: string[]
+  defaultSets: number
+  targetRepMin: number
+  targetRepMax: number
+  notes?: string
 }
 
 // Base session interface
@@ -200,11 +212,11 @@ export interface HypertrophyTemplate {
   }[]
 }
 
-export interface ClimbingTemplate {
+export type ClimbingTemplate = {
   id: string
   name: string
   category: "Climbing"
-  blocks: Omit<ClimbingBlock, "id">[]
+  blocks: ClimbingBlock[]
 }
 
 export interface CombatTemplate {

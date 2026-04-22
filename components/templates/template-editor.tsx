@@ -28,6 +28,7 @@ import type {
   HypertrophyTemplate,
   ClimbingTemplate,
   CombatTemplate,
+  ClimbingBlock,
   ClimbingBlockType,
   BoardType,
   Intensity,
@@ -388,12 +389,14 @@ function HypertrophyTemplateEditor({
 function ClimbingTemplateEditor({
   template,
   onChange,
+  availableExercises,
 }: {
   template: ClimbingTemplate
   onChange?: (template: ClimbingTemplate) => void
+  availableExercises: Exercise[]
 }) {
   const [name, setName] = useState(template.name)
-  const [blocks, setBlocks] = useState(template.blocks)
+  const [blocks, setBlocks] = useState<ClimbingBlock[]>(template.blocks)
 
   useEffect(() => {
     setName(template.name)
@@ -405,10 +408,12 @@ function ClimbingTemplateEditor({
     onChange?.({ ...template, name: newName, blocks })
   }
 
-  const handleBlockChange = (
+  const handleBlockChange = <
+    K extends keyof ClimbingBlock
+  >(
     index: number,
-    field: keyof (typeof blocks)[number],
-    value: string | number
+    field: K,
+    value: ClimbingBlock[K]
   ) => {
     const newBlocks = [...blocks]
     newBlocks[index] = { ...newBlocks[index], [field]: value }
@@ -417,15 +422,18 @@ function ClimbingTemplateEditor({
   }
 
   const handleAddBlock = () => {
-    const newBlock = {
-      blockType: "Other" as ClimbingBlockType,
-      boardType: "None" as BoardType,
+    const newBlock: ClimbingBlock = {
+      id: `block-${Date.now()}`,
+      blockType: "Other",
+      boardType: "None",
       gradeRange: "",
-      intensity: "Moderate" as Intensity,
+      intensity: "Moderate",
       duration: 15,
       notes: "",
+      exercises: [],
     }
-    const newBlocks = [...blocks, newBlock]
+
+    const newBlocks: ClimbingBlock[] = [...blocks, newBlock]
     setBlocks(newBlocks)
     onChange?.({ ...template, name, blocks: newBlocks })
   }
@@ -434,6 +442,81 @@ function ClimbingTemplateEditor({
     const newBlocks = blocks.filter((_, i) => i !== index)
     setBlocks(newBlocks)
     onChange?.({ ...template, name, blocks: newBlocks })
+  }
+
+    const climbingExercises = availableExercises.filter(
+    (e) => e.category === "Climbing"
+  )
+
+  const updateBlocks = (newBlocks: ClimbingBlock[]) => {
+    setBlocks(newBlocks)
+    onChange?.({ ...template, name, blocks: newBlocks })
+  }
+
+  const handleAddExerciseToBlock = (blockIndex: number, exerciseId: string) => {
+    const ex = availableExercises.find((e) => e.id === exerciseId)
+    if (!ex) return
+
+    const newExercise = {
+      exerciseId: ex.id,
+      exerciseName: ex.name,
+      primaryMuscleGroup: ex.primaryMuscleGroup,
+      subRegions: ex.subRegions,
+      defaultSets: 3,
+      targetRepMin: 5,
+      targetRepMax: 8,
+      notes: "",
+    }
+
+    const newBlocks = [...blocks]
+    const currentExercises = newBlocks[blockIndex].exercises ?? []
+
+    if (currentExercises.some((item) => item.exerciseId === ex.id)) return
+
+    newBlocks[blockIndex] = {
+      ...newBlocks[blockIndex],
+      exercises: [...currentExercises, newExercise],
+    }
+
+    updateBlocks(newBlocks)
+  }
+
+  const handleRemoveExerciseFromBlock = (
+    blockIndex: number,
+    exerciseIndex: number
+  ) => {
+    const newBlocks = [...blocks]
+
+    newBlocks[blockIndex] = {
+      ...newBlocks[blockIndex],
+      exercises: newBlocks[blockIndex].exercises.filter(
+        (_, i) => i !== exerciseIndex
+      ),
+    }
+
+    updateBlocks(newBlocks)
+  }
+
+  const handleBlockExerciseChange = (
+    blockIndex: number,
+    exerciseIndex: number,
+    field: "defaultSets" | "targetRepMin" | "targetRepMax" | "notes",
+    value: number | string
+  ) => {
+    const newBlocks = [...blocks]
+    const nextExercises = [...newBlocks[blockIndex].exercises]
+
+    nextExercises[exerciseIndex] = {
+      ...nextExercises[exerciseIndex],
+      [field]: value,
+    }
+
+    newBlocks[blockIndex] = {
+      ...newBlocks[blockIndex],
+      exercises: nextExercises,
+    }
+
+    updateBlocks(newBlocks)
   }
 
   return (
@@ -478,7 +561,7 @@ function ClimbingTemplateEditor({
           ) : (
             blocks.map((block, index) => (
               <div
-                key={index}
+                key={block.id}
                 className="space-y-3 rounded-md border bg-card p-4"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -488,7 +571,7 @@ function ClimbingTemplateEditor({
                     </Badge>
                     <Select
                       value={block.blockType}
-                      onValueChange={(value) =>
+                      onValueChange={(value: ClimbingBlockType) =>
                         handleBlockChange(index, "blockType", value)
                       }
                     >
@@ -520,7 +603,7 @@ function ClimbingTemplateEditor({
                     </label>
                     <Select
                       value={block.boardType}
-                      onValueChange={(value) =>
+                      onValueChange={(value: BoardType) =>
                         handleBlockChange(index, "boardType", value)
                       }
                     >
@@ -563,9 +646,7 @@ function ClimbingTemplateEditor({
                           key={level}
                           type="button"
                           size="sm"
-                          variant={
-                            block.intensity === level ? "default" : "outline"
-                          }
+                          variant={block.intensity === level ? "default" : "outline"}
                           className="h-7 px-2 text-xs"
                           onClick={() =>
                             handleBlockChange(index, "intensity", level)
@@ -597,7 +678,6 @@ function ClimbingTemplateEditor({
                   </div>
                 </div>
 
-                {/* Notes field */}
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">
                     Notes
@@ -611,6 +691,128 @@ function ClimbingTemplateEditor({
                     className="h-8 text-xs"
                   />
                 </div>
+              <div className="space-y-2 border-t pt-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Block exercises
+                    </label>
+
+                    <Select onValueChange={(value) => handleAddExerciseToBlock(index, value)}>
+                      <SelectTrigger className="h-8 w-[220px] text-xs">
+                        <SelectValue placeholder="Add climbing exercise..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {climbingExercises
+                          .filter(
+                            (ex) => !block.exercises.some((item) => item.exerciseId === ex.id)
+                          )
+                          .map((ex) => (
+                            <SelectItem key={ex.id} value={ex.id}>
+                              {ex.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {block.exercises.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No exercises added to this block yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {block.exercises.map((exercise, exerciseIndex) => (
+                        <div
+                          key={exercise.exerciseId}
+                          className="space-y-2 rounded-md border bg-background p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {exercise.exerciseName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {exercise.primaryMuscleGroup} - {exercise.subRegions.join(", ")}
+                              </p>
+                            </div>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() =>
+                                handleRemoveExerciseFromBlock(index, exerciseIndex)
+                              }
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Input
+                              type="number"
+                              value={exercise.defaultSets}
+                              onChange={(e) =>
+                                handleBlockExerciseChange(
+                                  index,
+                                  exerciseIndex,
+                                  "defaultSets",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="h-8 w-14 text-center text-xs"
+                            />
+                            <span className="text-xs text-muted-foreground">sets</span>
+
+                            <Input
+                              type="number"
+                              value={exercise.targetRepMin}
+                              onChange={(e) =>
+                                handleBlockExerciseChange(
+                                  index,
+                                  exerciseIndex,
+                                  "targetRepMin",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="h-8 w-14 text-center text-xs"
+                            />
+                            <span className="text-xs text-muted-foreground">to</span>
+
+                            <Input
+                              type="number"
+                              value={exercise.targetRepMax}
+                              onChange={(e) =>
+                                handleBlockExerciseChange(
+                                  index,
+                                  exerciseIndex,
+                                  "targetRepMax",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="h-8 w-14 text-center text-xs"
+                            />
+                            <span className="text-xs text-muted-foreground">reps</span>
+                          </div>
+
+                          <Input
+                            value={exercise.notes ?? ""}
+                            onChange={(e) =>
+                              handleBlockExerciseChange(
+                                index,
+                                exerciseIndex,
+                                "notes",
+                                e.target.value
+                              )
+                            }
+                            placeholder="Optional notes"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div> 
               </div>
             ))
           )}
@@ -786,20 +988,21 @@ export function TemplateEditor({
 
         localTemplate = {
           ...(template as ClimbingTemplate),
-          blocks: rows.map((row, index) => {
+          blocks: rows.map((row, index): ClimbingBlock => {
             const gradeRange =
               row.grade_min && row.grade_max
                 ? `${row.grade_min}-${row.grade_max}`
                 : row.grade_min || row.grade_max || ""
 
             return {
-              id: `block-${index}`,
+              id: row.id ?? `block-${index}`,
               blockType: mapBlockTypeFromDb(row.block_type),
               boardType: mapBoardTypeFromDb(row.board_type),
               gradeRange,
               intensity: mapIntensityFromDb(row.intensity),
               duration: row.planned_duration_min ?? 0,
               notes: row.notes ?? "",
+              exercises: [],
             }
           }),
         }
@@ -954,6 +1157,7 @@ export function TemplateEditor({
             <ClimbingTemplateEditor
               template={editedTemplate as ClimbingTemplate}
               onChange={setEditedTemplate}
+              availableExercises={availableExercises}
             />
           )}
 
