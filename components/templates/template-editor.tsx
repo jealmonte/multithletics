@@ -35,7 +35,11 @@ import type {
   Exercise,
 } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
-import type { DbTemplateExercise, DbTemplateBlock } from "@/lib/db-types"
+import type {
+  DbTemplateExercise,
+  DbTemplateBlock,
+  DbTemplateBlockExercise,
+} from "@/lib/db-types"
 
 const blockTypes: ClimbingBlockType[] = [
   "Warmup",
@@ -50,11 +54,6 @@ const blockTypes: ClimbingBlockType[] = [
 
 const boardTypes: BoardType[] = ["Moonboard", "Kilter", "Tension", "Spray", "None"]
 const intensities: Intensity[] = ["Easy", "Moderate", "Hard"]
-const intensityColors: Record<Intensity, string> = {
-  Easy: "bg-green-100 text-green-800",
-  Moderate: "bg-yellow-100 text-yellow-800",
-  Hard: "bg-red-100 text-red-800",
-}
 
 function mapBlockTypeToDb(type: ClimbingBlockType): string {
   switch (type) {
@@ -142,16 +141,22 @@ function mapBlockTypeFromDb(value: string | null): ClimbingBlockType {
     case "warmup":
       return "Warmup"
     case "no_hangs":
+    case "nohangs":
       return "No-hangs"
     case "limit_board":
+    case "limitboard":
       return "Limit board"
     case "tension_board":
+    case "tensionboard":
       return "Tension board"
     case "endurance_circuit":
+    case "endurancecircuit":
       return "Endurance circuit"
     case "spray_board":
+    case "sprayboard":
       return "Spray board"
     case "outdoor_prep":
+    case "outdoorprep":
       return "Outdoor prep"
     case "other":
     default:
@@ -408,9 +413,7 @@ function ClimbingTemplateEditor({
     onChange?.({ ...template, name: newName, blocks })
   }
 
-  const handleBlockChange = <
-    K extends keyof ClimbingBlock
-  >(
+  const handleBlockChange = <K extends keyof ClimbingBlock>(
     index: number,
     field: K,
     value: ClimbingBlock[K]
@@ -432,7 +435,6 @@ function ClimbingTemplateEditor({
       notes: "",
       exercises: [],
     }
-
     const newBlocks: ClimbingBlock[] = [...blocks, newBlock]
     setBlocks(newBlocks)
     onChange?.({ ...template, name, blocks: newBlocks })
@@ -444,7 +446,7 @@ function ClimbingTemplateEditor({
     onChange?.({ ...template, name, blocks: newBlocks })
   }
 
-    const climbingExercises = availableExercises.filter(
+  const climbingExercises = availableExercises.filter(
     (e) => e.category === "Climbing"
   )
 
@@ -629,7 +631,7 @@ function ClimbingTemplateEditor({
                       onChange={(e) =>
                         handleBlockChange(index, "gradeRange", e.target.value)
                       }
-                      placeholder="e.g. V3–V5"
+                      placeholder="e.g. V3-V5"
                       className="h-8 text-xs"
                     />
                   </div>
@@ -646,7 +648,9 @@ function ClimbingTemplateEditor({
                           key={level}
                           type="button"
                           size="sm"
-                          variant={block.intensity === level ? "default" : "outline"}
+                          variant={
+                            block.intensity === level ? "default" : "outline"
+                          }
                           className="h-7 px-2 text-xs"
                           onClick={() =>
                             handleBlockChange(index, "intensity", level)
@@ -691,7 +695,8 @@ function ClimbingTemplateEditor({
                     className="h-8 text-xs"
                   />
                 </div>
-              <div className="space-y-2 border-t pt-3">
+
+                <div className="space-y-2 border-t pt-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-muted-foreground">
                       Block exercises
@@ -704,7 +709,8 @@ function ClimbingTemplateEditor({
                       <SelectContent>
                         {climbingExercises
                           .filter(
-                            (ex) => !block.exercises.some((item) => item.exerciseId === ex.id)
+                            (ex) =>
+                              !block.exercises.some((item) => item.exerciseId === ex.id)
                           )
                           .map((ex) => (
                             <SelectItem key={ex.id} value={ex.id}>
@@ -812,7 +818,7 @@ function ClimbingTemplateEditor({
                       ))}
                     </div>
                   )}
-                </div> 
+                </div>
               </div>
             ))
           )}
@@ -972,19 +978,38 @@ export function TemplateEditor({
       }
 
       if (template.category === "Climbing") {
-        const { data, error } = await supabase
-          .from("template_blocks")
-          .select("*")
-          .eq("template_id", template.id)
-          .order("order_index", { ascending: true })
+        const { data: blockData, error: blockError } = await supabase
+            .from("template_blocks")
+            .select("*")
+            .eq("template_id", template.id)
+            .order("order_index", { ascending: true })
 
-        if (error) {
-          console.error(error)
-          setEditedTemplate(template)
-          return
-        }
+          if (blockError) {
+            console.error(blockError)
+            setEditedTemplate(template)
+            return
+          }
 
-        const rows = (data ?? []) as DbTemplateBlock[]
+          const rows = (blockData ?? []) as DbTemplateBlock[]
+          const blockIds = rows.map((row) => row.id).filter(Boolean)
+
+          let blockExercises: DbTemplateBlockExercise[] = []
+
+          if (blockIds.length > 0) {
+            const { data: blockExerciseData, error: blockExerciseError } = await supabase
+              .from("template_block_exercises")
+              .select("*")
+              .in("template_block_id", blockIds)
+              .order("order_index", { ascending: true })
+
+            if (blockExerciseError) {
+              console.error(blockExerciseError)
+              setEditedTemplate(template)
+              return
+            }
+
+            blockExercises = (blockExerciseData ?? []) as DbTemplateBlockExercise[]
+          }
 
         localTemplate = {
           ...(template as ClimbingTemplate),
@@ -994,6 +1019,25 @@ export function TemplateEditor({
                 ? `${row.grade_min}-${row.grade_max}`
                 : row.grade_min || row.grade_max || ""
 
+            const exercisesForBlock = blockExercises
+              .filter((exRow) => exRow.template_block_id === row.id)
+              .map((exRow) => {
+                const ex = availableExercises.find((e) => e.id === exRow.exercise_id)
+                if (!ex) return null
+
+                return {
+                  exerciseId: ex.id,
+                  exerciseName: ex.name,
+                  primaryMuscleGroup: ex.primaryMuscleGroup,
+                  subRegions: ex.subRegions,
+                  defaultSets: exRow.default_sets,
+                  targetRepMin: exRow.target_rep_min,
+                  targetRepMax: exRow.target_rep_max,
+                  notes: exRow.notes ?? "",
+                }
+              })
+              .filter(Boolean) as ClimbingBlock["exercises"]
+
             return {
               id: row.id ?? `block-${index}`,
               blockType: mapBlockTypeFromDb(row.block_type),
@@ -1002,7 +1046,7 @@ export function TemplateEditor({
               intensity: mapIntensityFromDb(row.intensity),
               duration: row.planned_duration_min ?? 0,
               notes: row.notes ?? "",
-              exercises: [],
+              exercises: exercisesForBlock,
             }
           }),
         }
@@ -1087,20 +1131,48 @@ export function TemplateEditor({
     if (editedTemplate.category === "Climbing") {
       const ct = editedTemplate as ClimbingTemplate
 
-      const { error: deleteError } = await supabase
-        .from("template_blocks")
-        .delete()
-        .eq("template_id", ct.id)
+      const { data: existingBlocks, error: existingBlocksError } = await supabase
+      .from("template_blocks")
+      .select("id")
+      .eq("template_id", ct.id)
 
-      if (deleteError) {
-        console.error(deleteError)
-        alert(deleteError.message)
+    if (existingBlocksError) {
+      console.error(existingBlocksError)
+      alert(existingBlocksError.message)
+      setLoading(false)
+      return
+    }
+
+    const existingBlockIds = (existingBlocks ?? []).map((row) => row.id).filter(Boolean)
+
+    if (existingBlockIds.length > 0) {
+      const { error: deleteBlockExercisesError } = await supabase
+        .from("template_block_exercises")
+        .delete()
+        .in("template_block_id", existingBlockIds)
+
+      if (deleteBlockExercisesError) {
+        console.error(deleteBlockExercisesError)
+        alert(deleteBlockExercisesError.message)
+        setLoading(false)
+        return
+      }
+}
+
+const { error: deleteBlocksError } = await supabase
+  .from("template_blocks")
+  .delete()
+  .eq("template_id", ct.id)
+
+      if (deleteBlocksError) {
+        console.error(deleteBlocksError)
+        alert(deleteBlocksError.message)
         setLoading(false)
         return
       }
 
       if (ct.blocks.length > 0) {
-        const payload = ct.blocks.map((block, index) => {
+        const blockPayload = ct.blocks.map((block, index) => {
           const gradeParts = block.gradeRange.split("-")
 
           return {
@@ -1116,15 +1188,44 @@ export function TemplateEditor({
           }
         })
 
-        const { error: insertError } = await supabase
+        const { data: insertedBlocks, error: insertBlocksError } = await supabase
           .from("template_blocks")
-          .insert(payload)
+          .insert(blockPayload)
+          .select("*")
 
-        if (insertError) {
-          console.error(insertError)
-          alert(insertError.message)
+        if (insertBlocksError) {
+          console.error(insertBlocksError)
+          alert(insertBlocksError.message)
           setLoading(false)
           return
+        }
+
+        const blockExercisePayload =
+          (insertedBlocks ?? []).flatMap((insertedBlock, index) => {
+            const sourceBlock = ct.blocks[index]
+
+            return (sourceBlock.exercises ?? []).map((exercise, exerciseIndex) => ({
+            template_block_id: insertedBlock.id,
+            exercise_id: exercise.exerciseId,
+            order_index: exerciseIndex,
+            default_sets: exercise.defaultSets,
+            target_rep_min: exercise.targetRepMin,
+            target_rep_max: exercise.targetRepMax,
+            notes: exercise.notes ?? null,
+          }))
+          })
+
+        if (blockExercisePayload.length > 0) {
+          const { error: insertBlockExercisesError } = await supabase
+            .from("template_block_exercises")
+            .insert(blockExercisePayload)
+
+          if (insertBlockExercisesError) {
+            console.error(insertBlockExercisesError)
+            alert(insertBlockExercisesError.message)
+            setLoading(false)
+            return
+          }
         }
       }
     }

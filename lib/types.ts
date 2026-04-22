@@ -164,6 +164,17 @@ export type ClimbingBlockExercise = {
   notes?: string
 }
 
+export type DbTemplateBlockExercise = {
+  id: string
+  template_block_id: string
+  exercise_id: string
+  order_index: number
+  default_sets: number
+  target_rep_min: number
+  target_rep_max: number
+  notes: string | null
+}
+
 // Base session interface
 export interface BaseSession {
   id: string
