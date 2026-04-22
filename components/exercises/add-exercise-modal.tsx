@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FieldGroup, Field, FieldLabel, FieldError } from "@/components/ui/field"
 import type { Exercise, ExerciseCategory, MuscleGroup } from "@/lib/types"
 import { muscleSubRegions } from "@/lib/types"
@@ -25,7 +26,9 @@ import { muscleSubRegions } from "@/lib/types"
 interface AddExerciseModalProps {
   open: boolean
   onClose: () => void
-  onAdd: (exercise: Omit<Exercise, "id">) => void
+  onAdd: (exercise: Omit<Exercise, "id">) => void | Promise<void>
+  initialExercise?: Exercise | null
+  mode?: "add" | "edit"
 }
 
 const categories: ExerciseCategory[] = ["Hypertrophy", "Climbing", "Other"]
@@ -44,20 +47,64 @@ const muscleGroups: MuscleGroup[] = [
   "Calves",
 ]
 
-export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps) {
+export function AddExerciseModal({
+  open,
+  onClose,
+  onAdd,
+  initialExercise = null,
+  mode = "add",
+}: AddExerciseModalProps) {
   const [name, setName] = useState("")
   const [category, setCategory] = useState<ExerciseCategory | "">("")
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | "">("")
-  const [subRegions, setSubRegion] = useState("")
+  const [subRegions, setSubRegions] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
-  const availableSubRegions = muscleGroup
-    ? muscleSubRegions[muscleGroup as MuscleGroup]
-    : []
+  const availableSubRegions = useMemo(
+    () => (muscleGroup ? muscleSubRegions[muscleGroup as MuscleGroup] : []),
+    [muscleGroup]
+  )
+
+  const resetForm = () => {
+    setName("")
+    setCategory("")
+    setMuscleGroup("")
+    setSubRegions([])
+    setErrors({})
+    setSubmitting(false)
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    if (initialExercise) {
+      setName(initialExercise.name)
+      setCategory(initialExercise.category)
+      setMuscleGroup(initialExercise.primaryMuscleGroup)
+      setSubRegions(initialExercise.subRegions ?? [])
+      setErrors({})
+      setSubmitting(false)
+    } else {
+      resetForm()
+    }
+  }, [open, initialExercise])
+
+  useEffect(() => {
+    setSubRegions((prev) =>
+      prev.filter((region) => availableSubRegions.includes(region))
+    )
+  }, [availableSubRegions])
 
   const handleMuscleGroupChange = (value: MuscleGroup) => {
     setMuscleGroup(value)
-    setSubRegion("") // Reset sub-region when muscle group changes
+    setSubRegions([])
+  }
+
+  const toggleSubRegion = (region: string, checked: boolean) => {
+    setSubRegions((prev) =>
+      checked ? [...prev, region] : prev.filter((r) => r !== region)
+    )
   }
 
   const validate = () => {
@@ -72,49 +119,49 @@ export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps
     if (!muscleGroup) {
       newErrors.muscleGroup = "Primary muscle group is required"
     }
-    if (!subRegions) {
-      newErrors.subRegion = "Sub-region is required"
+    if (subRegions.length === 0) {
+      newErrors.subRegion = "Select at least one sub-region"
     }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return
 
-    onAdd({
-      name: name.trim(),
-      category: category as ExerciseCategory,
-      primaryMuscleGroup: muscleGroup as MuscleGroup,
-      subRegions: subRegions ? [subRegions] : [],
-    })
+    try {
+      setSubmitting(true)
 
-    // Reset form
-    setName("")
-    setCategory("")
-    setMuscleGroup("")
-    setSubRegion("")
-    setErrors({})
-    onClose()
+      await onAdd({
+        name: name.trim(),
+        category: category as ExerciseCategory,
+        primaryMuscleGroup: muscleGroup as MuscleGroup,
+        subRegions,
+      })
+
+      resetForm()
+      onClose()
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleClose = () => {
-    setName("")
-    setCategory("")
-    setMuscleGroup("")
-    setSubRegion("")
-    setErrors({})
+    if (submitting) return
+    resetForm()
     onClose()
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Exercise</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "Edit Exercise" : "Add Exercise"}</DialogTitle>
           <DialogDescription>
-            Add a new exercise to your personal library.
+            {mode === "edit"
+              ? "Update an exercise in your personal library."
+              : "Add a new exercise to your personal library."}
           </DialogDescription>
         </DialogHeader>
 
@@ -172,39 +219,55 @@ export function AddExerciseModal({ open, onClose, onAdd }: AddExerciseModalProps
 
           <Field>
             <FieldLabel>
-              Sub-region <span className="text-destructive">*</span>
+              Sub-regions <span className="text-destructive">*</span>
             </FieldLabel>
-            <Select
-              value={subRegions}
-              onValueChange={setSubRegion}
-              disabled={!muscleGroup}
-            >
-              <SelectTrigger aria-invalid={!!errors.subRegion}>
-                <SelectValue
-                  placeholder={
-                    muscleGroup
-                      ? "Select sub-region"
-                      : "Select muscle group first"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {availableSubRegions.map((region) => (
-                  <SelectItem key={region} value={region}>
-                    {region}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            <div className="max-h-56 space-y-2 overflow-auto rounded-md border p-3">
+              {!muscleGroup ? (
+                <p className="text-sm text-muted-foreground">Select muscle group first</p>
+              ) : availableSubRegions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sub-regions available</p>
+              ) : (
+                availableSubRegions.map((region) => (
+                  <label
+                    key={region}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={subRegions.includes(region)}
+                      onCheckedChange={(checked) =>
+                        toggleSubRegion(region, checked === true)
+                      }
+                    />
+                    <span>{region}</span>
+                  </label>
+                ))
+              )}
+            </div>
+
+            {subRegions.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Selected: {subRegions.join(", ")}
+              </p>
+            )}
+
             {errors.subRegion && <FieldError>{errors.subRegion}</FieldError>}
           </Field>
         </FieldGroup>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Add Exercise</Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting
+              ? mode === "edit"
+                ? "Saving..."
+                : "Adding..."
+              : mode === "edit"
+              ? "Save Changes"
+              : "Add Exercise"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

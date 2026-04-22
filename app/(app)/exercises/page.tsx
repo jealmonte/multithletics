@@ -33,6 +33,7 @@ export default function ExercisesPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [muscleFilter, setMuscleFilter] = useState<string>("all")
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
   const [loading, setLoading] = useState(true)
 
   const loadData = async () => {
@@ -74,10 +75,7 @@ export default function ExercisesPage() {
         .filter((s) => linkedSubregionIds.includes(s.id))
         .map((s) => s.name)
 
-      if (
-        resolvedSubregions.length === 0 &&
-        exercise.primary_subregion_id
-      ) {
+      if (resolvedSubregions.length === 0 && exercise.primary_subregion_id) {
         const fallback = subregions.find((s) => s.id === exercise.primary_subregion_id)
         if (fallback) {
           resolvedSubregions = [fallback.name]
@@ -117,18 +115,28 @@ export default function ExercisesPage() {
     })
   }, [exercises, search, categoryFilter, muscleFilter])
 
-  const handleAddExercise = async (newExercise: Omit<Exercise, "id">) => {
+  const openAddModal = () => {
+    setEditingExercise(null)
+    setModalOpen(true)
+  }
+
+  const handleStartEdit = (exercise: Exercise) => {
+    setEditingExercise(exercise)
+    setModalOpen(true)
+  }
+
+  const handleSaveExercise = async (exercisePayload: Omit<Exercise, "id">) => {
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
     if (!user) {
-      alert("You must be logged in to add exercises.")
+      alert("You must be logged in to manage exercises.")
       return
     }
 
     const muscleGroup = dbMuscleGroups.find(
-      (m) => m.name === newExercise.primaryMuscleGroup
+      (m) => m.name === exercisePayload.primaryMuscleGroup
     )
 
     if (!muscleGroup) {
@@ -139,7 +147,7 @@ export default function ExercisesPage() {
     const chosenSubregions = dbSubregions.filter(
       (s) =>
         s.muscle_group_id === muscleGroup.id &&
-        newExercise.subRegions.includes(s.name)
+        exercisePayload.subRegions.includes(s.name)
     )
 
     if (chosenSubregions.length === 0) {
@@ -150,46 +158,92 @@ export default function ExercisesPage() {
     const primarySubregion = chosenSubregions[0]
 
     const dbCategory =
-      newExercise.category === "Hypertrophy"
+      exercisePayload.category === "Hypertrophy"
         ? "hypertrophy"
-        : newExercise.category === "Climbing"
+        : exercisePayload.category === "Climbing"
         ? "climbing"
         : "other"
 
-    const { data: insertedExercise, error: insertError } = await supabase
-      .from("exercises")
-      .insert({
-        user_id: user.id,
-        name: newExercise.name,
-        category: dbCategory,
-        primary_muscle_group_id: muscleGroup.id,
-        primary_subregion_id: primarySubregion.id,
-      })
-      .select("*")
-      .single()
+    if (editingExercise) {
+      const { error: updateError } = await supabase
+        .from("exercises")
+        .update({
+          name: exercisePayload.name,
+          category: dbCategory,
+          primary_muscle_group_id: muscleGroup.id,
+          primary_subregion_id: primarySubregion.id,
+        })
+        .eq("id", editingExercise.id)
+        .eq("user_id", user.id)
 
-    if (insertError || !insertedExercise) {
-      console.error(insertError)
-      alert(insertError?.message ?? "Failed to insert exercise.")
-      return
-    }
+      if (updateError) {
+        console.error(updateError)
+        alert(updateError.message)
+        return
+      }
 
-    const joinRows = chosenSubregions.map((subregion) => ({
-      exercise_id: insertedExercise.id,
-      muscle_subregion_id: subregion.id,
-    }))
+      const { error: deleteJoinError } = await supabase
+        .from("exercise_subregions")
+        .delete()
+        .eq("exercise_id", editingExercise.id)
 
-    const { error: joinError } = await supabase
-      .from("exercise_subregions")
-      .insert(joinRows)
+      if (deleteJoinError) {
+        console.error(deleteJoinError)
+        alert(deleteJoinError.message)
+        return
+      }
 
-    if (joinError) {
-      console.error(joinError)
-      alert(joinError.message)
-      return
+      const joinRows = chosenSubregions.map((subregion) => ({
+        exercise_id: editingExercise.id,
+        muscle_subregion_id: subregion.id,
+      }))
+
+      const { error: insertJoinError } = await supabase
+        .from("exercise_subregions")
+        .insert(joinRows)
+
+      if (insertJoinError) {
+        console.error(insertJoinError)
+        alert(insertJoinError.message)
+        return
+      }
+    } else {
+      const { data: insertedExercise, error: insertError } = await supabase
+        .from("exercises")
+        .insert({
+          user_id: user.id,
+          name: exercisePayload.name,
+          category: dbCategory,
+          primary_muscle_group_id: muscleGroup.id,
+          primary_subregion_id: primarySubregion.id,
+        })
+        .select("*")
+        .single()
+
+      if (insertError || !insertedExercise) {
+        console.error(insertError)
+        alert(insertError?.message ?? "Failed to insert exercise.")
+        return
+      }
+
+      const joinRows = chosenSubregions.map((subregion) => ({
+        exercise_id: insertedExercise.id,
+        muscle_subregion_id: subregion.id,
+      }))
+
+      const { error: joinError } = await supabase
+        .from("exercise_subregions")
+        .insert(joinRows)
+
+      if (joinError) {
+        console.error(joinError)
+        alert(joinError.message)
+        return
+      }
     }
 
     await loadData()
+    setEditingExercise(null)
     setModalOpen(false)
   }
 
@@ -240,7 +294,7 @@ export default function ExercisesPage() {
             </SelectContent>
           </Select>
 
-          <Button onClick={() => setModalOpen(true)} className="ml-auto">
+          <Button onClick={openAddModal} className="ml-auto">
             <Plus className="mr-2 h-4 w-4" />
             Add Exercise
           </Button>
@@ -253,14 +307,19 @@ export default function ExercisesPage() {
         </p>
 
         <div className="rounded-md border">
-          <ExerciseTable exercises={filteredExercises} onEdit={() => {}} />
+          <ExerciseTable exercises={filteredExercises} onEdit={handleStartEdit} />
         </div>
       </div>
 
       <AddExerciseModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onAdd={handleAddExercise}
+        onClose={() => {
+          setModalOpen(false)
+          setEditingExercise(null)
+        }}
+        onAdd={handleSaveExercise}
+        initialExercise={editingExercise}
+        mode={editingExercise ? "edit" : "add"}
       />
     </div>
   )
